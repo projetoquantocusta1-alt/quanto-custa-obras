@@ -64,7 +64,8 @@ async function obra(id) {
 function cartaoObra(o) {
   let extra = "";
   if (PARADAS.has(o.s) && o.dp != null) extra = `parada há ${tempo(o.dp)}`;
-  else if (!ENCERRADAS.has(o.s) && o.da > 0) extra = `${tempo(o.da)} de atraso`;
+  else if (o.s === "em_execucao" && o.da > 0) extra = `${tempo(o.da)} de atraso`;
+  else if (o.s === "cadastrada" && o.da > 0) extra = `prazo vencido há ${tempo(o.da)}, sem início`;
   const pf = o.pf != null ? ` · ${Math.round(o.pf)}% executado` : "";
   return `<a class="obra" href="#/obra/${encodeURIComponent(o.id)}">
     <div class="t">${esc(o.n)}</div>
@@ -91,7 +92,7 @@ function kpi(rot, val, det, alerta) {
 function telaInicio(app) {
   const r = META.resumo;
   const paradas = OBRAS.filter(o => PARADAS.has(o.s)).sort((a, b) => (b.v || 0) - (a.v || 0));
-  const atrasadas = OBRAS.filter(o => !ENCERRADAS.has(o.s) && !PARADAS.has(o.s) && o.da > 0).sort((a, b) => b.da - a.da);
+  const atrasadas = OBRAS.filter(o => o.s === "em_execucao" && o.da > 0).sort((a, b) => b.da - a.da);
   const munsParadas = MUNS.filter(m => m.n_paradas).sort((a, b) => b.valor_paradas - a.valor_paradas).slice(0, 8);
   app.innerHTML = `
     <div class="etiqueta">Obras com dinheiro federal · ${esc(META.estado)}</div>
@@ -103,7 +104,8 @@ function telaInicio(app) {
       ${kpi("Valor previsto", reaisC(r.valor_previsto), r.valor_previsto_hoje ? `${reaisC(r.valor_previsto_hoje)} em valores de hoje` : "")}
       ${kpi("Obras paradas", fmtInt.format(r.n_paradas), `paralisadas ou inacabadas · ${reaisC(r.valor_paradas)} previstos`, true)}
       ${kpi("Dinheiro parado", reaisC(r.dinheiro_parado), "já reservado (empenhado) em obras paradas", true)}
-      ${kpi("Atrasadas", fmtInt.format(r.n_atrasadas), "em andamento e já passaram do prazo")}
+      ${kpi("Atrasadas", fmtInt.format(r.n_atrasadas), "em execução e já passaram do prazo")}
+      ${r.n_nao_iniciadas_vencidas ? kpi("Nem começaram", fmtInt.format(r.n_nao_iniciadas_vencidas), "só cadastradas, com o prazo final já vencido") : ""}
     </div>
     <div class="painel">
       <div class="etiqueta">Situação das obras (pelo valor previsto)</div>
@@ -112,7 +114,7 @@ function telaInicio(app) {
     <h2>As maiores obras paradas</h2>
     <div class="obras">${paradas.slice(0, 8).map(cartaoObra).join("") || "<p>Nenhuma obra parada.</p>"}</div>
     ${paradas.length > 8 ? `<p><a href="#/paradas">Ver as ${fmtInt.format(paradas.length)} obras paradas →</a></p>` : ""}
-    <h2>As mais atrasadas entre as que estão andando</h2>
+    <h2>As mais atrasadas entre as que estão em execução</h2>
     <div class="obras">${atrasadas.slice(0, 6).map(cartaoObra).join("") || "<p>Nenhuma.</p>"}</div>
     <p><a href="#/obras?ordem=atraso">Ver todas pela ordem de atraso →</a></p>
     <h2>Municípios com mais dinheiro em obras paradas</h2>
@@ -163,7 +165,7 @@ function telaObras(app, fixo = {}) {
     let l = OBRAS.filter(o => {
       if (fixo.paradas && !PARADAS.has(o.s)) return false;
       if (sit === "paradas" && !PARADAS.has(o.s)) return false;
-      if (sit === "atrasadas" && !(o.da > 0 && !ENCERRADAS.has(o.s) && !PARADAS.has(o.s))) return false;
+      if (sit === "atrasadas" && !(o.da > 0 && o.s === "em_execucao")) return false;
       if (sit && !["paradas", "atrasadas"].includes(sit) && o.s !== sit) return false;
       if (mun && !(o.m || []).includes(mun)) return false;
       if (tipo && o.t !== tipo) return false;
@@ -249,8 +251,7 @@ async function telaObra(app, id) {
   app.innerHTML = `<p class="carregando">Carregando a obra…</p>`;
   let o;
   try { o = await obra(id); } catch (e) { app.innerHTML = "<p>Obra não encontrada.</p>"; return; }
-  const ativa = !ENCERRADAS.has(o.situacao);
-  const linhas = [];
+    const linhas = [];
   const d = o.datas;
   if (d.inicio_previsto) linhas.push(["Início previsto", dataBR(d.inicio_previsto)]);
   if (d.inicio_efetivo) linhas.push(["Início de fato", dataBR(d.inicio_efetivo)]);
@@ -274,8 +275,9 @@ async function telaObra(app, id) {
       ${kpi("Empenhado (reservado)", reais(o.empenhado), o.n_empenhos ? `${o.n_empenhos} empenho(s) no orçamento federal` : "")}
       ${kpi("Executado", o.percentual_fisico != null ? `${Math.round(o.percentual_fisico)}%` : "—", "da obra física, segundo o cadastro")}
       ${PARADAS.has(o.situacao) ? kpi("Parada há", tempo(o.dias_parada), o.dinheiro_parado ? `${reaisC(o.dinheiro_parado)} já empenhados` : "", true)
-        : (ativa && o.dias_atraso > 0 ? kpi("Atraso", tempo(o.dias_atraso), "desde o fim previsto", true)
-        : (o.situacao === "concluida" && o.dias_atraso > 0 ? kpi("Entregue com atraso de", tempo(o.dias_atraso), "") : ""))}
+        : (o.situacao === "em_execucao" && o.dias_atraso > 0 ? kpi("Atraso", tempo(o.dias_atraso), "desde o fim previsto", true)
+        : (o.situacao === "cadastrada" && o.dias_atraso > 0 ? kpi("Prazo vencido", tempo(o.dias_atraso), "e a obra não começou", true)
+        : (o.situacao === "concluida" && o.dias_atraso > 0 ? kpi("Entregue com atraso de", tempo(o.dias_atraso), "") : "")))}
     </div>
     ${o.percentual_fisico != null ? `<div class="progresso" aria-label="Executado"><span style="width:${Math.min(100, o.percentual_fisico)}%"></span></div>` : ""}
     <div class="grade2">

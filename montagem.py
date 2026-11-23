@@ -43,6 +43,14 @@ def situacao(rotulo):
 
 
 # ------------------------------------------------------------------ texto
+CONTROLE = re.compile(r"[\x00-\x1f\x7f-\x9f\ufffd]+")
+
+
+def limpo(s) -> str:
+    """Tira caracteres de controle e espaços repetidos que vêm do cadastro."""
+    return re.sub(r"\s+", " ", CONTROLE.sub(" ", s or "")).strip()
+
+
 def sem_acento(s: str) -> str:
     return "".join(c for c in unicodedata.normalize("NFD", s or "") if unicodedata.category(c) != "Mn")
 
@@ -206,8 +214,8 @@ def montar_obra(p: dict, det: dict | None, municipios: Municipios, fatores: dict
     for f in fis:
         for c in f.get("cancelamentosParalisacoes") or []:
             paralisacoes.append({
-                "motivos": [m.get("descricao") for m in c.get("motivosParalisacao") or [] if m.get("descricao")],
-                "indicativos": [m.get("descricao") for m in c.get("indicativosParalisacao") or [] if m.get("descricao")],
+                "motivos": [m.get("descricao") for m in c.get("motivosParalisacao") or [] if m and m.get("descricao")],
+                "indicativos": [m.get("descricao") for m in c.get("indicativosParalisacao") or [] if m and m.get("descricao")],
                 "tem_solucao_em_andamento": c.get("possuiTratativa"),
             })
 
@@ -261,13 +269,13 @@ def montar_obra(p: dict, det: dict | None, municipios: Municipios, fatores: dict
     previsto_hoje = r2(previsto * fator) if previsto and fator else None
 
     def lista(campo):
-        return [x.get("descricao") for x in p.get(campo) or [] if x.get("descricao")]
+        return [x.get("descricao") for x in p.get(campo) or [] if x and x.get("descricao")]
 
     return {
         "id": p["idUnico"],
-        "nome": privacidade.mascarar_cpf_no_texto((p.get("nome") or "").strip()),
-        "descricao": privacidade.mascarar_cpf_no_texto((p.get("descricao") or "").strip()),
-        "meta": privacidade.mascarar_cpf_no_texto((p.get("metaGlobal") or "").strip()) or None,
+        "nome": privacidade.mascarar_cpf_no_texto(limpo(p.get("nome"))),
+        "descricao": privacidade.mascarar_cpf_no_texto(limpo(p.get("descricao"))),
+        "meta": privacidade.mascarar_cpf_no_texto(limpo(p.get("metaGlobal"))) or None,
         "situacao": sit, "situacao_txt": sit_txt, "data_situacao": p.get("dataSituacao"),
         "especie": p.get("especie"), "natureza": p.get("natureza"),
         "eixos": lista("eixos"), "tipos": lista("tipos"), "subtipos": lista("subTipos"),
@@ -329,7 +337,8 @@ def resumo(obras: list[dict]) -> dict:
         "n_paradas": sum(1 for o in obras if o["situacao"] in PARADAS),
         "valor_paradas": soma("valor_previsto", lambda o: o["situacao"] in PARADAS),
         "dinheiro_parado": soma("dinheiro_parado"),
-        "n_atrasadas": sum(1 for o in ativas if (o["dias_atraso"] or 0) > 0),
+        "n_atrasadas": sum(1 for o in obras if o["situacao"] == "em_execucao" and (o["dias_atraso"] or 0) > 0),
+        "n_nao_iniciadas_vencidas": sum(1 for o in obras if o["situacao"] == "cadastrada" and (o["dias_atraso"] or 0) > 0),
         "n_ativas": len(ativas),
         "n_sem_municipio": sum(1 for o in obras if "sem_municipio" in o["alertas"]),
         "n_sem_valor": sum(1 for o in obras if "sem_valor" in o["alertas"]),
@@ -357,7 +366,7 @@ def por_municipio(obras, municipios: Municipios, populacao: dict) -> list[dict]:
             m["n_paradas"] += 1
             m["valor_paradas"] += o["valor_previsto"] or 0
             m["dinheiro_parado"] += o["dinheiro_parado"] or 0
-        if o["situacao"] not in ENCERRADAS and (o["dias_atraso"] or 0) > 0:
+        if o["situacao"] == "em_execucao" and (o["dias_atraso"] or 0) > 0:
             m["n_atrasadas"] += 1
     for m in out.values():
         for k in ("valor", "valor_paradas", "dinheiro_parado"):
