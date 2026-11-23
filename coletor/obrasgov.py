@@ -44,6 +44,11 @@ def _get(rota: str, params: dict, tentativas: int = 5):
         except Exception as e:  # noqa: BLE001 — 403 do firewall, 524 de tempo, JSON cortado
             ultimo = e
             if getattr(getattr(e, "response", None), "status_code", None) == 404:
+                # 404 = "obra sem esse dado" (ex.: sem empenho). Não é falha do site: desfaz a contagem
+                # do núcleo, senão depois de 10 obras assim o site seria dado como fora do ar.
+                host = url.split("/")[2]
+                http._falhas[host] = 0
+                http._falhas_total[host] = max(0, http._falhas_total.get(host, 0) - 1)
                 return None
             espera = 10 * (t + 1)
             log.warning("ObrasGov %s %s falhou (%s); nova tentativa em %s s", rota, params, str(e)[:120], espera)
