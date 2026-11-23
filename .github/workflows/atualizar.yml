@@ -21,7 +21,7 @@ concurrency:
 jobs:
   rodar:
     runs-on: ubuntu-latest
-    timeout-minutes: 300
+    timeout-minutes: 340
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -34,9 +34,9 @@ jobs:
       - name: Coletar e montar o site
         run: |
           if [ "${{ github.event.inputs.semanal }}" = "sim" ] || [ "${{ github.event.schedule }}" = "41 8 * * 0" ]; then
-            python atualizar.py --semanal --minutos 180
+            python atualizar.py --semanal --minutos-lista 150 --minutos 150
           else
-            python atualizar.py --minutos 180
+            python atualizar.py --minutos-lista 150 --minutos 150
           fi
       - name: Publicar
         if: always()

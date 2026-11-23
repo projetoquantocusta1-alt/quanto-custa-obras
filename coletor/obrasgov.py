@@ -64,28 +64,54 @@ def _conteudo(d):
     return d.get("content") or []
 
 
-def listar_projetos(uf: str, situacao: str | None = None, progresso=None) -> list[dict]:
-    """Todas as obras do estado. Para quando vem uma página incompleta."""
+def listar_projetos(uf: str, situacao: str | None = None, progresso=None, checkpoint=None,
+                    limite_segundos: float | None = None) -> tuple[list[dict], bool]:
+    """Todas as obras do estado. Devolve (obras, completa).
+
+    A lista acaba quando vem uma página incompleta. Com `checkpoint` (um arquivo), o progresso é gravado a cada
+    página e uma execução seguinte retoma de onde parou (a lista do Ceará tem ~5 mil obras e leva horas).
+    Se 3 páginas seguidas não trouxerem nenhuma obra nova, a API está repetindo: para.
+    """
+    import json
+    import time as _t
     tam = config.OBRASGOV_TAMANHO_PAGINA
-    out, pag = [], 0
+    por_id, pag, repetidas = {}, 0, 0
+    if checkpoint and checkpoint.exists():
+        try:
+            ck = json.loads(checkpoint.read_text("utf-8"))
+            if ck.get("uf") == uf and ck.get("situacao") == situacao:
+                por_id = {o["idUnico"]: o for o in ck["obras"]}
+                pag = ck["proxima_pagina"]
+        except (ValueError, KeyError):
+            pass
+    inicio = _t.time()
+    completa = False
     while True:
+        if limite_segundos and _t.time() - inicio > limite_segundos:
+            break
         params = {"uf": uf, "pagina": pag, "tamanhoDaPagina": tam}
         if situacao:
             params["situacao"] = situacao
         c = _conteudo(_get("projeto-investimento", params))
-        out += [limpar_projeto(p) for p in c]
-        if progresso:
-            progresso(pag, len(out))
-        if len(c) < tam:
-            break
+        novas = 0
+        for o in c:
+            if o.get("idUnico"):
+                novas += o["idUnico"] not in por_id
+                por_id[o["idUnico"]] = limpar_projeto(o)
+        repetidas = repetidas + 1 if c and not novas else 0
         pag += 1
-    # a paginação da API não tem ordem garantida: remove repetidas
-    vistos, unicas = set(), []
-    for p in out:
-        if p.get("idUnico") and p["idUnico"] not in vistos:
-            vistos.add(p["idUnico"])
-            unicas.append(p)
-    return unicas
+        if progresso:
+            progresso(pag - 1, len(por_id))
+        if checkpoint:
+            checkpoint.parent.mkdir(parents=True, exist_ok=True)
+            checkpoint.write_text(json.dumps({"uf": uf, "situacao": situacao, "proxima_pagina": pag,
+                                              "obras": list(por_id.values())}, ensure_ascii=False), "utf-8")
+        if len(c) < tam or repetidas >= 3:
+            completa = True
+            break
+    if completa and checkpoint and checkpoint.exists():
+        checkpoint.unlink()
+    return list(por_id.values()), completa
 
 
 def projeto(id_unico: str) -> dict | None:

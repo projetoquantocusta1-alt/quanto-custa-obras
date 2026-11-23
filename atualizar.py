@@ -51,10 +51,15 @@ def nome_arquivo(id_unico: str) -> str:
 
 
 # ------------------------------------------------------------------ coleta
-def coletar_projetos():
-    log.info("ObrasGov: listando as obras de %s (leva alguns minutos)", config.UF)
-    projetos = obrasgov.listar_projetos(
-        config.UF, progresso=lambda pag, n: log.info("  página %s: %s obras", pag, n))
+def coletar_projetos(minutos: float):
+    """Lista completa. Se não der tempo, o progresso fica em listagem_parcial.json e a próxima execução continua;
+    enquanto isso, vale a última lista completa."""
+    log.info("ObrasGov: listando as obras de %s (leva horas na primeira vez; retoma de onde parou)", config.UF)
+    projetos, completa = obrasgov.listar_projetos(
+        config.UF, progresso=lambda pag, n: log.info("  página %s: %s obras", pag, n),
+        checkpoint=BRUTOS / "obrasgov" / "listagem_parcial.json", limite_segundos=minutos * 60)
+    if not completa:
+        raise RuntimeError(f"lista incompleta ({len(projetos)} obras até agora); continua na próxima execução")
     if not projetos:
         raise RuntimeError("ObrasGov devolveu a lista vazia; mantendo a anterior")
     anterior = ler(BRUTOS / "obrasgov" / "projetos.json", {}) or {}
@@ -138,7 +143,8 @@ def main(argv=None):
     ap.add_argument("--semanal", action="store_true")
     ap.add_argument("--so-montar", action="store_true")
     ap.add_argument("--so-lista", action="store_true", help="só a lista de obras (sem detalhes nem site)")
-    ap.add_argument("--minutos", type=float, default=90)
+    ap.add_argument("--minutos", type=float, default=90, help="tempo máximo para os detalhes das obras")
+    ap.add_argument("--minutos-lista", type=float, default=150, help="tempo máximo para a lista de obras")
     a = ap.parse_args(argv)
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(message)s", datefmt="%H:%M:%S")
     http.configurar(user_agent=config.USER_AGENT, pausa=config.OBRASGOV_PAUSA)
@@ -147,7 +153,7 @@ def main(argv=None):
         if a.semanal or not (BRUTOS / "ibge" / "malha.json").exists() or not (BRUTOS / "ipca.json").exists():
             coletar_semanal()
         try:
-            projetos = coletar_projetos()
+            projetos = coletar_projetos(a.minutos_lista)
         except Exception as e:  # noqa: BLE001
             log.warning("Lista de obras não atualizada: %s", e)
             projetos = (ler(BRUTOS / "obrasgov" / "projetos.json", {}) or {}).get("obras", [])
