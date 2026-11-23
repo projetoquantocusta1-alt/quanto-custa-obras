@@ -1,0 +1,3 @@
+requests>=2.31
+pytest>=8
+quanto-custa-nucleo @ git+https://github.com/projetoquantocusta1-alt/quanto-custa-nucleo@27cf35dbe27ac9c2e0e064c1bee5f889761404e4

@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Quanto Custa? Obras federais</title>
+<meta name="description" content="Obras públicas com dinheiro federal: quanto custam, em que pé estão, quais estão paradas e há quanto tempo.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Source+Serif+4:opsz,wght@8..60,600;8..60,700&display=swap">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<link rel="stylesheet" href="estilo.css">
+</head>
+<body>
+<header class="topo">
+  <a class="marca" href="#/">
+    <span class="logo">QC</span>
+    <span><strong>Quanto Custa? Obras</strong><span class="marca-sub" id="sub-estado">Obras federais</span></span>
+  </a>
+  <nav class="menu" id="menu">
+    <a href="#/" data-r="inicio">Início</a>
+    <a href="#/obras" data-r="obras">Obras</a>
+    <a href="#/paradas" data-r="paradas">Paradas</a>
+    <a href="#/municipios" data-r="municipios">Municípios</a>
+    <a href="#/mapa" data-r="mapa">Mapa</a>
+    <a href="#/como" data-r="como">Como calculamos</a>
+  </nav>
+</header>
+<main id="app" aria-live="polite"><p class="carregando">Carregando…</p></main>
+<footer class="rodape">
+  <p>Projeto Quanto Custa? · dados abertos do governo federal (ObrasGov.br), IBGE e Banco Central.
+  <span id="atualizado"></span></p>
+</footer>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
