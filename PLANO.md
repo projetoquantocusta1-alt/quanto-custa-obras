@@ -20,7 +20,7 @@ Roda sozinho todo dia pelo GitHub Actions (`.github/workflows/atualizar.yml`), c
 | Fonte | Situação | O que traz | Observações |
 |---|---|---|---|
 | **ObrasGov.br** (API pública) | ✅ funcionando, usada no piloto | Cadastro de cada obra; % executado e motivos de paralisação; empenhos; ponto no mapa | Lenta (~0,8 s por obra listada; ~5 s para o detalhe de uma obra). Exige identificação do robô, senão o firewall bloqueia. O total informado pela API não é confiável. Não informa o município. |
-| **PNCP** (API pública) | ✅ responde | Contratos e termos aditivos | **Cada contrato tem o campo `identificadorCipi`, que é o código da obra no ObrasGov.** É a ligação direta para os aditivos. Dá para filtrar pelo CNPJ do órgão (a prefeitura executora vem com CNPJ no ObrasGov). |
+| **PNCP** (API pública) | ✅ responde | Contratos e termos aditivos | Cada contrato tem o campo `identificadorCipi` (o código da obra no ObrasGov), **mas quase ninguém preenche**: Tabuleiro do Norte, 2025, 115 contratos (8 de obras), nenhum com o código. Dá para filtrar pelo CNPJ do órgão (a prefeitura executora vem com CNPJ no ObrasGov). |
 | **Transferegov** | ⚠️ parcial | Convênios e repasses: valor combinado, liberado e pago | A API pública responde para "transferências especiais" (emendas Pix). Os arquivos de convênios mudaram de endereço; falta achar o atual. O **número do convênio** já aparece no ObrasGov (no mapa: "instrumento 875966"; no nome: "CR 875966/2018") e o robô já o extrai. Alternativa: a API do Portal da Transparência (exige uma chave gratuita, cadastro com e-mail). |
 | **CNO** (Receita Federal) | ⚠️ arquivo existe | Cadastro Nacional de Obras | Ver seção 3. Arquivo de ~340 MB atualizado todo mês. O download não foi testado neste ambiente (bloqueado pela proteção da sessão); testar no GitHub Actions. |
 | **TCU**, **FNDE**, **Saúde** | a fazer | Obras paralisadas (TCU), creches e escolas (FNDE), postos de saúde | Na fase 4. As obras do FNDE já aparecem no ObrasGov (programa "Obras 2"). |
@@ -31,7 +31,9 @@ Roda sozinho todo dia pelo GitHub Actions (`.github/workflows/atualizar.yml`), c
 
 Não existe um "CPF da obra" comum a todas, mas os testes acharam boas pistas:
 
-1. **Código do ObrasGov (CIPI)** → **PNCP**: o contrato traz `identificadorCipi`. Ligação exata.
+1. **Código do ObrasGov (CIPI)** → **PNCP**: quando o contrato traz `identificadorCipi`, a ligação é exata. Como
+   quase sempre vem vazio, o caminho normal é: contratos de **obras** do **CNPJ da prefeitura executora** + objeto
+   parecido com o nome da obra + valor compatível. Ligação feita assim aparece como "provável", com o motivo.
 2. **Número do convênio** → **Transferegov**: o ObrasGov traz o número do instrumento. Ligação exata.
 3. **CNPJ do órgão executor** → **PNCP** e **CNO**: as prefeituras aparecem com CNPJ no ObrasGov.
 4. **Município** (pelo órgão, pelo ponto no mapa ou pelo nome) + **nome parecido**: só como último recurso e,
